@@ -21,15 +21,15 @@
 -export([start/3, send/2]).
 
 %% Exported for spawn
--export([receive_control/4]).
+-export([receive_control/3]).
 
 start(Arg, CallbackMod, Opts) ->
     SC = get(sc),
     CliSock = Arg#arg.clisock,
     PrepdOpts = preprocess_opts(Opts),
     OwnerPid = spawn(?MODULE, receive_control,
-                     [Arg, SC, CallbackMod, PrepdOpts]),
-    CliSock = Arg#arg.clisock,
+                     [Arg, CallbackMod, PrepdOpts]),
+
     case SC#sconf.ssl of
         undefined ->
             inet:setopts(CliSock, [{packet, raw}, {active, once}]),
@@ -73,15 +73,15 @@ preprocess_opts(GivenOpts) ->
                 {callback, basic}],
     lists:foldl(Fun, GivenOpts, Defaults).
 
-receive_control(Arg, SC, CallbackMod, Opts) ->
+receive_control(Arg, CallbackMod, Opts) ->
     receive
         ok ->
-            handshake(Arg, SC, CallbackMod, Opts);
+            handshake(Arg, CallbackMod, Opts);
         {error, Reason} ->
             exit(Reason)
     end.
 
-handshake(Arg, SC, CallbackMod, Opts) ->
+handshake(Arg, CallbackMod, Opts) ->
     CliSock = Arg#arg.clisock,
     OriginOpt = lists:keyfind(origin, 1, Opts),
     Origin = get_origin_header(Arg#arg.headers),
@@ -91,18 +91,8 @@ handshake(Arg, SC, CallbackMod, Opts) ->
             exit({error, Error});
         ok ->
             ProtocolVersion = ws_version(Arg#arg.headers),
-            Protocol = get_protocol_header(Arg#arg.headers),
-            Host = (Arg#arg.headers)#headers.host,
-            {abs_path, Path} = (Arg#arg.req)#http_request.path,
 
-            WebSocketLocation =
-                case SC#sconf.ssl of
-                    undefined -> "ws://" ++ Host ++ Path;
-                    _ -> "wss://" ++ Host ++ Path
-                end,
-
-            Handshake = handshake(ProtocolVersion, Arg, CliSock,
-                                  WebSocketLocation, Origin, Protocol),
+            Handshake = handshake(ProtocolVersion, Arg),
             gen_tcp:send(CliSock, Handshake),   % TODO: use the yaws way of
                                                 % supporting normal
                                                 % and ssl sockets
@@ -128,7 +118,7 @@ origin_check(Actual, {origin, Expected}) ->
                           [Expected, Actual]),
     {error, Error}.
 
-handshake(8, Arg, _CliSock, _WebSocketLocation, _Origin, _Protocol) ->
+handshake(8, Arg) ->
     Key = get_nonce_header(Arg#arg.headers),
     AcceptHash = hash_nonce(Key),
     ["HTTP/1.1 101 Switching Protocols\r\n",
@@ -553,9 +543,6 @@ get_origin_header(Headers) ->
         undefined -> query_header("sec-websocket-origin", Headers);
         Origin    -> Origin
     end.
-
-get_protocol_header(Headers) ->
-    query_header("sec-websocket-protocol", Headers, "unknown").
 
 get_nonce_header(Headers) ->
     query_header("sec-websocket-key", Headers).
