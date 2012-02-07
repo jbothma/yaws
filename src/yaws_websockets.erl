@@ -24,22 +24,14 @@
 -export([receive_control/3]).
 
 start(Arg, CallbackMod, Opts) ->
-    SC = get(sc),
     CliSock = Arg#arg.clisock,
     PrepdOpts = preprocess_opts(Opts),
     OwnerPid = spawn(?MODULE, receive_control,
                      [Arg, CallbackMod, PrepdOpts]),
 
-    case SC#sconf.ssl of
-        undefined ->
-            inet:setopts(CliSock, [{packet, raw}, {active, once}]),
-            TakeOverResult =
-                gen_tcp:controlling_process(CliSock, OwnerPid);
-        _ ->
-            ssl:setopts(CliSock, [{packet, raw}, {active, once}]),
-            TakeOverResult =
-                ssl:controlling_process(CliSock, OwnerPid)
-    end,
+    inet:setopts(CliSock, [{packet, raw}, {active, once}]),
+    TakeOverResult = gen_tcp:controlling_process(CliSock, OwnerPid),
+
     case TakeOverResult of
         ok ->
             OwnerPid ! ok,
