@@ -1,4 +1,4 @@
--module(yaws_websocket_test).
+-module(yaws_websockets_test).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("../../include/yaws_api.hrl").
