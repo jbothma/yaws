@@ -257,6 +257,28 @@ handle_message(#ws_frame_info{opcode=pong}, Acc) ->
     %%        draft-ietf-hybi-thewebsocketprotocol-08#section-4
     Acc;
 
+%% According to RFC 6455 section 5.4, control messages like close
+%% MAY be injected in the middle of a fragmented message, which is
+%% why we pass FragType and FragAcc along below. Whether any clients
+%% actually do this in practice, I don't know.
+handle_message(#ws_frame_info{opcode=close,
+                              length=Len,
+                              data=Data,
+                              ws_state=State},
+               {Messages, FragType, FragAcc}) ->
+    {NewMessage, Status} = case Len of
+                               0 ->
+                                   %% RFC 6455 section 7.4.1:
+                                   %% status code 1000 means "normal"
+                                   {{close, 1000, <<>>}, <<>>};
+                               _ ->
+                                   <<S1:16/big, Msg/binary>> = Data,
+                                   <<S2:2/binary, _/binary>> = Data,
+                                   {{close, S1, Msg}, S2}
+                           end,
+    send(State, {close, Status}),
+    {[NewMessage|Messages], FragType, FragAcc};
+
 handle_message(#ws_frame_info{}, Acc) ->
     Acc.
 
