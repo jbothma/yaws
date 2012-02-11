@@ -221,13 +221,13 @@ handle_message(#ws_frame_info{fin=1,
                {Messages, text, FragAcc}) ->
     Unfragged = <<FragAcc/binary, Data/binary>>,
     NewMessage = {text, Unfragged},
-    {[NewMessage | Messages], none, <<>>};
+    {lists:append(Messages, [NewMessage]), none, <<>>};
 
 %% unfragmented text message
 handle_message(#ws_frame_info{opcode=text, data=Data},
                {Messages, none, <<>>}) ->
     NewMessage = {text, Data},
-    {[NewMessage | Messages], none, <<>>};
+    {lists:append(Messages, [NewMessage]), none, <<>>};
 
 %% end of binary fragmented message
 handle_message(#ws_frame_info{fin=1,
@@ -236,13 +236,13 @@ handle_message(#ws_frame_info{fin=1,
                {Messages, binary, FragAcc}) ->
     Unfragged = <<FragAcc/binary, Data/binary>>,
     NewMessage = {binary, Unfragged},
-    {[NewMessage|Messages], none, <<>>};
+    {lists:append(Messages, [NewMessage]), none, <<>>};
 
 handle_message(#ws_frame_info{opcode=binary,
                               data=Data},
                {Messages, none, <<>>}) ->
     NewMessage = {binary, Data},
-    {[NewMessage|Messages], none, <<>>};
+    {lists:append(Messages, [NewMessage]), none, <<>>};
 
 handle_message(#ws_frame_info{opcode=ping,
                               data=Data,
@@ -277,7 +277,7 @@ handle_message(#ws_frame_info{opcode=close,
                                    {{close, S1, Msg}, S2}
                            end,
     send(State, {close, Status}),
-    {[NewMessage|Messages], FragType, FragAcc};
+    {lists:append(Messages, [NewMessage]), FragType, FragAcc};
 
 handle_message(#ws_frame_info{}, Acc) ->
     Acc.
